@@ -140,6 +140,76 @@ PLAN
         echo "    got: $brief_path"
     fi
 
+    cat > "$repo/grouped.md" <<'PLAN'
+# Grouped plan
+## Trajectory T1: Service
+### Task 1: Contract
+Contract work.
+### Task 2: Service
+Service work.
+#### Step 1: Test
+```markdown
+## Trajectory T99: Example only
+### Task 99: Example only
+```
+## Trajectory T2: Panel
+Panel-only metadata.
+### Task 3: Panel
+Panel work.
+### Final checks
+Not part of Task 3.
+PLAN
+    cat > "$TEST_ROOT/expected-brief" <<'BRIEF'
+### Task 2: Service
+Service work.
+#### Step 1: Test
+```markdown
+## Trajectory T99: Example only
+### Task 99: Example only
+```
+BRIEF
+    (cd "$repo" && bash "$SDD_SCRIPTS/task-brief" grouped.md 2 "$TEST_ROOT/grouped-brief" >/dev/null)
+    if cmp -s "$TEST_ROOT/expected-brief" "$TEST_ROOT/grouped-brief"; then
+        pass "grouped task brief stops before the next trajectory and retains nested steps and fences"
+    else
+        fail "grouped task brief stops before the next trajectory and retains nested steps and fences"
+        diff -u "$TEST_ROOT/expected-brief" "$TEST_ROOT/grouped-brief" || :
+    fi
+    printf '### Task 3: Panel\nPanel work.\n' > "$TEST_ROOT/expected-brief"
+    (cd "$repo" && bash "$SDD_SCRIPTS/task-brief" grouped.md 3 "$TEST_ROOT/grouped-brief" >/dev/null)
+    if cmp -s "$TEST_ROOT/expected-brief" "$TEST_ROOT/grouped-brief"; then
+        pass "task brief stops at a same-level non-task heading"
+    else
+        fail "task brief stops at a same-level non-task heading"
+    fi
+
+    cat > "$TEST_ROOT/expected-fenced-brief" <<'BRIEF'
+## Task 7: Fences
+   ```markdown
+## Task 99: Inside indented fence
+   ```
+~~~markdown
+# Inside tilde fence
+~~~
+````markdown
+```
+## Task 98: Inside shorter nested fence
+```
+````
+BRIEF
+    {
+        printf '# Fenced plan\n'
+        cat "$TEST_ROOT/expected-fenced-brief"
+        printf '## Task 8: Real next task\nExcluded work.\n'
+    } > "$repo/fenced.md"
+    (cd "$repo" && bash "$SDD_SCRIPTS/task-brief" fenced.md 7 "$TEST_ROOT/fenced-brief" >/dev/null)
+    if cmp -s "$TEST_ROOT/expected-fenced-brief" "$TEST_ROOT/fenced-brief"; then
+        pass "task brief preserves indented, tilde and shorter nested fences"
+    else
+        fail "task brief preserves indented, tilde and shorter nested fences"
+        diff -u "$TEST_ROOT/expected-fenced-brief" "$TEST_ROOT/fenced-brief" || :
+    fi
+
     # --- review-package takes the plan first and lands in its directory ---
     local git_id=(-c user.email=t@example.com -c user.name=t -c commit.gpgsign=false)
     ( cd "$repo" \

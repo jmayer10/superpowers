@@ -28,9 +28,34 @@ else
 fi
 
 awk -v n="$n" '
-  /^```/ { infence = !infence }
+  {
+    match($0, /^ */)
+    indent = RLENGTH
+    content = substr($0, indent + 1)
+    if (indent <= 3 && content ~ /^(```|~~~)/) {
+      marker = substr(content, 1, 1)
+      match(content, marker == "`" ? "^`+" : "^~+")
+      width = RLENGTH
+      rest = substr(content, width + 1)
+      if (!infence) {
+        if (marker != "`" || !index(rest, "`")) {
+          infence = 1
+          fencechar = marker
+          fencelen = width
+        }
+      } else if (marker == fencechar && width >= fencelen && rest ~ /^[ \t]*$/) {
+        infence = 0
+      }
+    }
+  }
+  !infence && /^#+[ \t]+/ {
+    match($0, /^#+/)
+    level = RLENGTH
+    if (intask && level <= tasklevel) intask = 0
+  }
   !infence && /^#+[ \t]+Task[ \t]+[0-9]+/ {
     intask = ($0 ~ ("^#+[ \t]+Task[ \t]+" n "([^0-9]|$)"))
+    tasklevel = level
   }
   intask { print }
 ' "$plan" > "$out"
